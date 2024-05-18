@@ -5,41 +5,35 @@ from langchain_upstage import ChatUpstage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain.schema import AIMessage, HumanMessage
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_upstage import ChatUpstage
 
 load_dotenv()
 
-llm = ChatUpstage()
 
-chat_with_history_prompt = ChatPromptTemplate.from_messages(
-    [
-        ("system", "You are a helpful assistant."),
-        MessagesPlaceholder(variable_name="history"),
-        ("human", "{message}"),
-    ]
-)
+def main():
+    loader = PyPDFLoader("pdfs/solar_paper.pdf")
+    docs = loader.load()  # or layzer.lazy_load()
+    print(docs[0].page_content[:1000])
 
-chain = chat_with_history_prompt | llm | StrOutputParser()
+    llm = ChatUpstage()
 
-def chat(message, history):
-    history_langchain_format = []
-    for human, ai in history:
-        history_langchain_format.append(HumanMessage(content=human))
-        history_langchain_format.append(AIMessage(content=ai))
-
-    return chain.invoke({"message": message, "history": history_langchain_format})
-
-with gr.Blocks() as demo:
-    chatbot = gr.ChatInterface(
-        chat,
-        examples=[
-            "How to eat healthy?",
-            "Best Places in Korea",
-            "How to make a chatbot?",
-        ],
-        title="Solar Chatbot",
-        description="Upstage Solar Chatbot",
+    prompt_template = PromptTemplate.from_template(
+        """
+        Please provide most correct answer from the following context. 
+        If the answer is not present in the context, please write "The information is not present in the context."
+        ---
+        Question: {question}
+        ---
+        Context: {Context}
+        """
     )
-    chatbot.chatbot.height = 300
+    chain = prompt_template | llm | StrOutputParser()
+
+    chain.invoke({"question": "Explain Table 2?", "Context": docs})
+
 
 if __name__ == "__main__":
-    demo.launch()
+    main()
